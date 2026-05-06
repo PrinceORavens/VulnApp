@@ -50,7 +50,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          # No cache: sentinel-sca is installed globally; the scanned repo may
+          # not have a lock file, which would cause setup-node to fail.
 
       - name: Install Sentinel SCA
         run: npm install -g sentinel-sca
@@ -72,7 +73,7 @@ jobs:
 
       - name: Upload SARIF to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: sentinel-results.sarif
           category: sentinel-sca
