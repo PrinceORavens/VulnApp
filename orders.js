@@ -85,4 +85,9 @@ router.get('/:id/tracking', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/orders/health
+router.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 module.exports = router;
