@@ -35,6 +35,8 @@ permissions:
   contents: read
   security-events: write    # Required for SARIF upload to GitHub Security tab
   pull-requests: write      # For PR comment annotations
+  pages: write              # Required for GitHub Pages deployment
+  id-token: write           # Required for OIDC Pages deployment
 
 jobs:
   sca-scan:
@@ -133,6 +135,23 @@ jobs:
               repo: context.repo.repo,
               body
             });
+
+      - name: Prepare Pages artifact
+        if: github.ref == 'refs/heads/main' && always()
+        run: |
+          mkdir -p _site
+          cp sentinel-results.html _site/index.html
+
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && always()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main' && always()
+        id: deployment
+        uses: actions/deploy-pages@v4
 
       - name: Enforce Security Gate
         if: steps.sca-scan.outcome == 'failure'
