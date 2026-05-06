@@ -54,7 +54,9 @@ jobs:
           # not have a lock file, which would cause setup-node to fail.
 
       - name: Install Sentinel SCA
-        run: npm install -g github:PrinceORavens/sentinel-sca
+        run: |
+          git clone --depth 1 https://github.com/PrinceORavens/sentinel-sca.git /tmp/sentinel-sca
+          cd /tmp/sentinel-sca && npm install --omit=dev && npm link
 
       - name: Run SCA Scan
         id: sca-scan
