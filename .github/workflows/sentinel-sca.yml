@@ -32,7 +32,9 @@ jobs:
           node-version: '20'
 
       - name: Install Sentinel SCA
-        run: npm install -g github:PrinceORavens/sentinel-sca#v1.0.0
+        run: |
+          git clone --depth 1 --branch main https://github.com/PrinceORavens/sentinel-sca.git /tmp/sentinel-sca
+          cd /tmp/sentinel-sca && npm install --omit=dev && npm link
 
       - name: Run Sentinel SCA
         id: scan
