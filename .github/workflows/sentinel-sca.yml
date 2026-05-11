@@ -1,161 +1,66 @@
-# Sentinel SCA - GitHub Actions Integration
-# Place this file at: .github/workflows/sentinel-sca.yml
-#
-# Required secrets:
-#   ANTHROPIC_API_KEY  - For AI reachability analysis (optional but recommended)
-#   NVD_API_KEY        - For enhanced NVD data (optional, increases rate limits)
-
-name: Sentinel SCA - Dependency Security Scan
+name: Sentinel SCA
 
 on:
   push:
-    branches: [main, master, develop]
-    # No paths filter — reachability changes whenever app code changes,
-    # not only when dependency manifests are updated.
+    branches: [main, master]
+    paths:
+      - 'package*.json'
+      - 'requirements*.txt'
+      - 'Pipfile**'
+      - 'poetry.lock'
   pull_request:
-    branches: [main, master, develop]
-  schedule:
-    # Daily scan at 06:00 UTC to catch newly published CVEs against existing deps
-    - cron: '0 6 * * *'
+    branches: [main, master]
   workflow_dispatch:
-    inputs:
-      fail_on:
-        description: 'Fail on severity level'
-        required: false
-        default: 'high'
-        type: choice
-        options: [critical, high, medium, low]
-      include_dev:
-        description: 'Include dev dependencies'
-        required: false
-        default: false
-        type: boolean
-
-permissions:
-  contents: read
-  security-events: write    # Required for SARIF upload to GitHub Security tab
-  pull-requests: write      # For PR comment annotations
-  pages: write              # Required for GitHub Pages deployment
-  id-token: write           # Required for OIDC Pages deployment
+  schedule:
+    - cron: '0 6 * * 1'
 
 jobs:
-  sca-scan:
-    name: SCA Vulnerability Scan
+  sentinel-sca:
+    name: Dependency Security Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # No cache: sentinel-sca is installed globally; the scanned repo may
-          # not have a lock file, which would cause setup-node to fail.
 
       - name: Install Sentinel SCA
-        run: |
-          git clone --depth 1 https://github.com/PrinceORavens/sentinel-sca.git /tmp/sentinel-sca
-          cd /tmp/sentinel-sca && npm install --omit=dev && npm link
+        run: npm install -g github:PrinceORavens/sentinel-sca
 
-      - name: Run SCA Scan
-        id: sca-scan
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+      - name: Run Sentinel SCA
+        id: scan
         run: |
           sentinel-sca scan \
             --path . \
-            --output sarif,html \
-            --file sentinel-results \
-            --fail-on ${{ inputs.fail_on || 'high' }} \
-            ${{ inputs.include_dev && '--include-dev' || '' }}
-        continue-on-error: true  # Exit code handled by the Enforce gate step below
+            --output html,sarif,github \
+            --fail-on high \
+            --skip-licenses
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        continue-on-error: true
 
-      - name: Upload SARIF to GitHub Security
-        if: always()
-        continue-on-error: true  # Requires Code Scanning enabled in repo Settings → Security
-        uses: github/codeql-action/upload-sarif@v4
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: sentinel-results.sarif
+          sarif_file: sentinel-report.sarif
           category: sentinel-sca
-
-      - name: Upload Report Artifacts
         if: always()
+
+      - name: Upload HTML report
         uses: actions/upload-artifact@v4
         with:
-          name: sentinel-sca-report-${{ github.run_id }}
-          path: |
-            sentinel-results.sarif
-            sentinel-results.html
+          name: sentinel-sca-report
+          path: sentinel-report.html
           retention-days: 30
+        if: always()
 
-      - name: Post PR Comment with Summary
-        if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            let sarif;
-            try {
-              sarif = JSON.parse(fs.readFileSync('sentinel-results.sarif', 'utf8'));
-            } catch {
-              console.log('No SARIF results found');
-              return;
-            }
-
-            const results = sarif.runs?.[0]?.results || [];
-            const critical = results.filter(r => r.level === 'error' &&
-              r.properties?.['sentinel-sca/effectiveRisk'] === 'CONFIRMED_REACHABLE').length;
-            const high = results.filter(r => r.level === 'error').length;
-            const suppressed = results.filter(r => r.suppressions?.length > 0).length;
-            const total = results.length;
-
-            const emoji = critical > 0 ? '🚨' : high > 0 ? '⚠️' : '✅';
-            const status = critical > 0 ? 'CRITICAL issues found' : high > 0 ? 'High severity issues found' : 'No blocking issues';
-
-            const body = `## ${emoji} Sentinel SCA Results — ${status}
-
-            | Metric | Count |
-            |--------|-------|
-            | Total vulnerabilities found | ${total} |
-            | AI-confirmed reachable | ${critical} |
-            | High severity | ${high} |
-            | Suppressed by AI (not reachable) | ${suppressed} |
-
-            > Full report available in [GitHub Security tab](https://github.com/${{ github.repository }}/security/code-scanning) and as a [workflow artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).
-
-            *Powered by [Sentinel SCA](https://github.com/your-org/sentinel-sca) with AI reachability analysis*`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body
-            });
-
-      - name: Prepare Pages artifact
-        if: github.ref == 'refs/heads/main' && always()
-        run: |
-          mkdir -p _site
-          cp sentinel-results.html _site/index.html
-
-      - name: Upload Pages artifact
-        if: github.ref == 'refs/heads/main' && always()
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-      - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main' && always()
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-      - name: Enforce Security Gate
-        if: steps.sca-scan.outcome == 'failure'
-        run: |
-          echo "::error::Sentinel SCA found vulnerabilities at or above the configured severity threshold."
-          echo "::error::Review the Security tab or workflow artifacts for details."
-          exit 1
+      - name: Fail if blocking vulnerabilities found
+        if: steps.scan.outcome == 'failure'
+        run: exit 1
