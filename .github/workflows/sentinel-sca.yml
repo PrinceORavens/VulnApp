@@ -43,7 +43,8 @@ jobs:
             --path . \
             --output html,sarif,github \
             --fail-on high \
-            --skip-licenses
+            --skip-licenses \
+            --no-cache
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         continue-on-error: true
