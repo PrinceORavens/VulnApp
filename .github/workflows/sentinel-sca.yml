@@ -32,8 +32,10 @@ jobs:
           node-version: '20'
 
       - name: Install Sentinel SCA
+        env:
+          DEPENDENCY_ACCESS_TOKEN: ${{ secrets.DEPENDENCY_ACCESS_TOKEN }}
         run: |
-          git clone --depth 1 --branch main https://github.com/PrinceORavens/sentinel-sca.git /tmp/sentinel-sca
+          git clone --depth 1 --branch main https://x-access-token:${DEPENDENCY_ACCESS_TOKEN}@github.com/PrinceORavens/sentinel-sca.git /tmp/sentinel-sca
           cd /tmp/sentinel-sca && npm install --omit=dev && npm link
 
       - name: Run Sentinel SCA
