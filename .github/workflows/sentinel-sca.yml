@@ -31,14 +31,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Load deploy key for sentinel-sca
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SENTINEL_DEPLOY_KEY }}
-
       - name: Install Sentinel SCA
+        env:
+          DEPENDENCY_ACCESS_TOKEN: ${{ secrets.DEPENDENCY_ACCESS_TOKEN }}
         run: |
-          git clone --depth 1 --branch main git@github.com:PrinceORavens/sentinel-sca.git /tmp/sentinel-sca
+          git clone --depth 1 --branch main https://x-access-token:${DEPENDENCY_ACCESS_TOKEN}@github.com/PrinceORavens/sentinel-sca.git /tmp/sentinel-sca
           cd /tmp/sentinel-sca && npm install --omit=dev && npm link
 
       - name: Run Sentinel SCA
