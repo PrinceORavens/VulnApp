@@ -7,6 +7,7 @@ const moment = require('moment');
 const fetch = require('node-fetch');
 const { v4: uuidv4 } = require('uuid');
 const { authenticate } = require('./auth');
+const { generateOrderExport } = require('./data-export');
 const router = express.Router();
 
 const PAYMENT_SERVICE_URL = process.env.PAYMENT_SERVICE_URL || 'http://payment-svc:4000';
@@ -84,6 +85,22 @@ router.get('/:id/tracking', authenticate, async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: 'Tracking unavailable' });
   }
+});
+
+// POST /api/orders/:id/export
+// ⚠ VULNERABLE (cross-file chain): req.body flows to serialize() via data-export.js
+// CVE-2020-7660: serialize-javascript@2.1.1 — XSS via serialised RegExp/Function
+// Call chain: handleExport → generateOrderExport → buildExportPayload → serialize()
+router.post('/:id/export', authenticate, (req, res) => {
+  const order = ORDERS.find(o => o.id === req.params.id && o.userId === req.user.userId);
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+
+  // User can include extra metadata in the export — flows to serialize() unchecked
+  const exportData = { ...order, ...req.body.exportOptions };
+  const script = generateOrderExport(exportData, req.body.format || 'js');
+
+  res.setHeader('Content-Type', 'application/javascript');
+  res.send(script);
 });
 
 // GET /api/orders/health

@@ -11,6 +11,18 @@ on:
   pull_request:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      fail_on:
+        description: 'Minimum severity to fail the build'
+        required: false
+        default: 'high'
+        type: choice
+        options:
+          - critical
+          - high
+          - medium
+          - low
+          - none
   schedule:
     - cron: '0 6 * * 1'
 
@@ -57,7 +69,7 @@ jobs:
           sentinel-sca scan \
             --path . \
             --output html,sarif,github \
-            --fail-on high \
+            --fail-on ${{ github.event.inputs.fail_on || 'high' }} \
             --skip-licenses
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

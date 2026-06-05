@@ -1,6 +1,6 @@
 {
   "name": "acme-store-api",
-  "version": "2.4.1",
+  "version": "2.5.0",
   "description": "ACME E-Commerce Store — Node.js API layer (test target for Sentinel SCA)",
   "main": "src/server.js",
   "type": "commonjs",
