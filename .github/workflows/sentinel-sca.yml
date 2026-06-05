@@ -38,6 +38,19 @@ jobs:
           git clone --depth 1 --branch main https://x-access-token:${DEPENDENCY_ACCESS_TOKEN}@github.com/PrinceORavens/sentinel-sca.git /tmp/sentinel-sca
           cd /tmp/sentinel-sca && npm install --omit=dev && npm link
 
+      - name: Restore Sentinel SCA caches
+        uses: actions/cache@v4
+        with:
+          # Cache OSV vulnerability results (24h TTL) and AI reachability results (7-day TTL).
+          # Key includes the lockfile hash so the cache is invalidated when dependencies change.
+          # On a cache hit with unchanged deps, AI spend is effectively $0.
+          path: |
+            ~/.sentinel-cache
+            .sentinel-ai-cache
+          key: sentinel-${{ runner.os }}-${{ hashFiles('package-lock.json', 'requirements*.txt', 'Pipfile.lock', 'poetry.lock', 'go.sum', 'Cargo.lock') }}
+          restore-keys: |
+            sentinel-${{ runner.os }}-
+
       - name: Run Sentinel SCA
         id: scan
         run: |
@@ -45,8 +58,7 @@ jobs:
             --path . \
             --output html,sarif,github \
             --fail-on high \
-            --skip-licenses \
-            --no-cache
+            --skip-licenses
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         continue-on-error: true
