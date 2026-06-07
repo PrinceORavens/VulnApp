@@ -5,9 +5,6 @@ on:
     branches: [main, master]
     paths:
       - 'package*.json'
-      - 'requirements*.txt'
-      - 'Pipfile**'
-      - 'poetry.lock'
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -50,12 +47,13 @@ jobs:
       - name: Restore Sentinel SCA caches
         uses: actions/cache@v4
         with:
-          # ~/.sentinel-sca   — OSV vulnerability result cache (24-hour TTL, global)
-          # .sentinel-cache   — AI reachability + scan-level cache (7-day TTL, project-local)
+          # ~/.sentinel-sca   OSV vulnerability result cache (24-hour TTL, global across runs)
+          # .sentinel-cache   AI reachability + scan-level cache (7-day TTL, project-local)
+          # Key is invalidated automatically when any manifest or lockfile changes.
           path: |
             ~/.sentinel-sca
             .sentinel-cache
-          key: sentinel-${{ runner.os }}-${{ hashFiles('package-lock.json', 'package.json', 'requirements*.txt', 'Pipfile.lock', 'poetry.lock', 'go.sum', 'Cargo.lock') }}
+          key: sentinel-${{ runner.os }}-${{ hashFiles('package-lock.json', 'package.json', 'requirements*.txt', 'Pipfile.lock', 'poetry.lock', 'go.sum', 'Cargo.lock', 'pom.xml', 'build.gradle*', '*.csproj', 'Gemfile.lock', 'pubspec.lock', 'mix.lock') }}
           restore-keys: |
             sentinel-${{ runner.os }}-
 
@@ -67,8 +65,7 @@ jobs:
           sentinel-sca scan \
             --path . \
             --output html,sarif,github \
-            --fail-on ${{ github.event.inputs.fail_on || 'high' }} \
-            --skip-licenses
+            --fail-on ${{ github.event.inputs.fail_on || 'high' }}
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Security tab
